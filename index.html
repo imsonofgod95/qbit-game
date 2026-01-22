@@ -3,142 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qbit Trivia 🌍</title>
+    <title>Qbit Trivia Pro</title>
     <style>
-        body { font-family: 'Arial', sans-serif; background-color: #1a1a2e; color: white; text-align: center; padding: 20px; }
-        .card { background-color: #16213e; padding: 20px; border-radius: 15px; max-width: 500px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        h1 { margin-top: 0; color: #fff; letter-spacing: 2px; }
-        
-        select {
-            padding: 10px;
-            font-size: 1em;
-            border-radius: 5px;
-            border: none;
-            background-color: #0f3460;
-            color: white;
-            cursor: pointer;
-            margin-bottom: 15px;
-            width: 80%;
-        }
-
-        h2 { color: #e94560; min-height: 60px; font-size: 1.4em; }
-        .info { color: #aaa; font-size: 0.8em; margin-bottom: 20px; text-transform: uppercase; }
-        .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; background-color: #0f3460; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1em; transition: 0.3s; }
-        .btn:hover:not(:disabled) { background-color: #e94560; transform: scale(1.02); }
-        .btn:disabled { background-color: #333; cursor: not-allowed; opacity: 0.6; }
-        #resultado { margin-top: 20px; font-weight: bold; font-size: 1.2em; min-height: 30px; }
-        .siguiente { background-color: #228B22; display: none; margin-top: 20px; }
-        .siguiente:hover { background-color: #2eb82e; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        #marcador { font-size: 1.5rem; font-weight: bold; margin-bottom: 10px; color: #1a73e8; }
+        #contenedor-tiempo { width: 100%; height: 10px; background: #eee; border-radius: 5px; margin: 15px 0; overflow: hidden; }
+        #barra-tiempo { width: 100%; height: 100%; background: #4caf50; transition: width 0.1s linear; }
+        #pregunta { font-size: 1.2rem; margin-bottom: 20px; min-height: 60px; }
+        .opciones-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        button { padding: 12px; border: none; border-radius: 8px; background: #1a73e8; color: white; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.98); background: #1557b0; }
+        select { padding: 8px; margin-bottom: 20px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>QBIT TRIVIA</h1>
-
-        <select id="filtro-idioma" onchange="cargarPregunta()">
-            <option value="es-MX">🇲🇽 México (Español)</option>
-            <option value="en-US">🇺🇸 USA (English)</option>
+        <div id="marcador">Puntos: 0</div>
+        
+        <select id="idioma" onchange="nuevaPregunta()">
+            <option value="es">Español (MX) 🇲🇽</option>
+            <option value="en">English (US) 🇺🇸</option>
         </select>
 
-        <div class="info">
-            <span id="categoria">Categoría</span> • <span id="dificultad">Dificultad</span>
-        </div>
-        
-        <h2 id="pregunta">Cargando desafío...</h2>
+        <div id="contenedor-tiempo"><div id="barra-tiempo"></div></div>
 
-        <div id="opciones">
-            </div>
-
-        <div id="resultado"></div>
-        <button class="btn siguiente" onclick="cargarPregunta()">Siguiente Pregunta ➡️</button>
+        <div id="pregunta">Cargando...</div>
+        <div id="opciones" class="opciones-grid"></div>
     </div>
 
     <script>
-        // CONFIGURACIÓN DE TU API EN RENDER
-        const API_BASE_URL = "https://qbit-e6gb.onrender.com";
-        let preguntaActualId = 0; 
+        let puntos = 0;
+        let idPregunta = null;
+        let tiempoInicio = 0;
+        let intervalo;
+        const TIEMPO_LIMITE = 15; // segundos
 
-        async function cargarPregunta() {
-            document.getElementById("resultado").innerText = "";
-            document.querySelector(".siguiente").style.display = "none";
-            document.getElementById("opciones").innerHTML = "<p>Conectando con Qbit Cloud...</p>";
-            document.getElementById("pregunta").innerText = "...";
+        function nuevaPregunta() {
+            const lang = document.getElementById('idioma').value;
+            const region = lang === 'es' ? 'MX' : 'US';
             
-            const selector = document.getElementById("filtro-idioma").value;
-            const [idioma, region] = selector.split("-");
+            fetch(`https://qbit-e6gb.onrender.com/pregunta-random?idioma=${lang}&region=${region}`)
+                .then(res => res.json())
+                .then(data => {
+                    idPregunta = data.id;
+                    document.getElementById('pregunta').innerText = data.pregunta;
+                    const container = document.getElementById('opciones');
+                    container.innerHTML = '';
+                    
+                    data.opciones.forEach(opt => {
+                        const btn = document.createElement('button');
+                        btn.innerText = opt;
+                        btn.onclick = () => validar(opt);
+                        container.appendChild(btn);
+                    });
 
-            try {
-                // Llamada a tu servidor en la nube
-                const response = await fetch(`${API_BASE_URL}/pregunta-random?idioma=${idioma}&region=${region}`);
-                
-                if (response.status === 404) {
-                    document.getElementById("pregunta").innerText = "⚠️ No hay preguntas en este idioma.";
-                    document.getElementById("opciones").innerHTML = "<small>Falta generar contenido para esta región.</small>";
-                    return;
-                }
-
-                const data = await response.json();
-                preguntaActualId = data.id;
-
-                document.getElementById("pregunta").innerText = data.pregunta;
-                document.getElementById("dificultad").innerText = data.dificultad;
-                document.getElementById("categoria").innerText = data.categoria;
-                
-                const divOpciones = document.getElementById("opciones");
-                divOpciones.innerHTML = "";
-
-                data.opciones.forEach(opcion => {
-                    const boton = document.createElement("button");
-                    boton.className = "btn";
-                    boton.innerText = opcion;
-                    boton.onclick = () => enviarRespuesta(opcion);
-                    divOpciones.appendChild(boton);
+                    resetCronometro();
                 });
-
-            } catch (error) {
-                document.getElementById("pregunta").innerText = "❌ Error de conexión con Qbit.";
-                console.error("Error:", error);
-            }
         }
 
-        async function enviarRespuesta(respuestaElegida) {
-            const divResultado = document.getElementById("resultado");
-            divResultado.style.color = "#aaa";
-            divResultado.innerText = "Validando en servidor..."; 
+        function resetCronometro() {
+            clearInterval(intervalo);
+            let restante = TIEMPO_LIMITE;
+            tiempoInicio = performance.now();
+            const barra = document.getElementById('barra-tiempo');
             
-            const botones = document.querySelectorAll("#opciones .btn");
-            botones.forEach(btn => btn.disabled = true);
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/validar-respuesta`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        pregunta_id: preguntaActualId,
-                        respuesta_elegida: respuestaElegida
-                    })
-                });
+            intervalo = setInterval(() => {
+                restante -= 0.1;
+                let pct = (restante / TIEMPO_LIMITE) * 100;
+                barra.style.width = pct + "%";
                 
-                const data = await response.json();
+                if(pct < 30) barra.style.background = "#ff5252";
+                else if(pct < 60) barra.style.background = "#ffd740";
+                else barra.style.background = "#4caf50";
 
-                if (data.resultado === true) {
-                    divResultado.style.color = "#4CAF50";
-                    divResultado.innerText = "✅ ¡CORRECTO! +10 pts";
+                if(restante <= 0) {
+                    clearInterval(intervalo);
+                    alert("¡Tiempo agotado!");
+                    nuevaPregunta();
+                }
+            }, 100);
+        }
+
+        function validar(elegida) {
+            clearInterval(intervalo);
+            const ms = Math.round(performance.now() - tiempoInicio);
+
+            fetch('https://qbit-e6gb.onrender.com/validar-respuesta', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    pregunta_id: idPregunta,
+                    respuesta_elegida: elegida,
+                    tiempo_ms: ms
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.resultado) {
+                    puntos += data.puntos_obtenidos;
+                    alert(`¡Correcto! +${data.puntos_obtenidos} pts`);
                 } else {
-                    divResultado.style.color = "#ff4c4c";
-                    divResultado.innerText = "❌ Incorrecto. Era: " + data.correcta_era;
+                    alert(`Incorrecto. Era: ${data.correcta_era}`);
                 }
-                
-                document.querySelector(".siguiente").style.display = "block";
-
-            } catch (error) {
-                divResultado.innerText = "Error en validación remota.";
-            }
+                document.getElementById('marcador').innerText = `Puntos: ${puntos}`;
+                nuevaPregunta();
+            });
         }
 
-        // Carga inicial
-        cargarPregunta();
+        // Iniciar al cargar
+        window.onload = nuevaPregunta;
     </script>
 </body>
 </html>
